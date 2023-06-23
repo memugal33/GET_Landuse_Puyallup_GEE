@@ -1,0 +1,130 @@
+var puy = ee.FeatureCollection("users/memugal33/Puyallup");
+
+// Import the NLCD collection.
+/// Takes in the images i want and extracts frequency of each
+
+
+//// List of year i need from the image collection /////
+var yr = ['1992','2001','2004','2006','2008','2011','2013','2016'];
+
+///// setting up my study area //////
+var std = ee.FeatureCollection(puy) //i have this as a asset
+
+/////// Writing a function that will iterate over each year ///// 
+
+//// Maybe there is other way of selecting each image in image collection but 
+//// i couldnt figure out anyother way
+
+var each_img = function(s){ //// s is year number
+
+//// This will select image for specific year from Land cover data ////
+var dat = ee.Image('USGS/NLCD_RELEASES/2016_REL/'+s)
+var cov = dat.select('landcover'); //// only select 'landcover'
+var cov2 = cov.clip(std); //// clip for my study area
+
+
+////// obtain frequency historgram ///////////
+var freq = cov2.reduceRegions({
+  reducer:ee.Reducer.frequencyHistogram(),
+  collection: std,
+  scale:30
+})
+var freq1 = freq.select(['histogram'],null,false);
+
+var freq2 = freq1.map(function(feature){
+  var dict = ee.Dictionary(feature.toDictionary().get('histogram'))
+  feature = feature.set(dict)
+  return feature
+})
+
+//// Is there a way to extract freq2 to a table or list in a loop
+////so that i could download all histogram at once?
+
+//// This is the only way i know to extract each histogram in a loop but this may not work?
+//Export.table.toDrive(freq2, "PuyallupLandCoverData"+s);
+
+/////////////////////////////
+
+
+////// select land cover i want /////////////////
+var onlyforest = cov2.updateMask(cov2.eq(41).or(cov2.eq(42)).or(cov2.eq(43)))
+/// This selects three land cover type (Three types of forests from the data)
+var onlyreq = cov2.updateMask(cov2.eq(81).or(cov2.eq(82)).or(cov2.gt(20).and(cov2.lt(25))).or(cov2.gt(40).and(cov2.lt(44))))
+var urban = ee.List([21,22,23,24])
+var forest = ee.List([41,42,43])
+var cultcrops = ee.List([81,82])
+////// How do i save each of this image (onlyforest) as a image collection in a loop?
+// So i could visualize change in forest in the area
+
+var filtlist = urban.cat(forest).cat(cultcrops)
+
+var land = cov2.updateMask(cov2.eq(ee.Image.constant(filtlist)))
+
+var projection = onlyreq.projection().getInfo();
+
+Export.image.toDrive({
+  image: onlyreq,
+  description: 'imageToDriveExample_transform',
+  fileNamePrefix: 'reqland'+s,
+  crs: projection.crs,
+  crsTransform: projection.transform,
+  region: std
+});
+
+
+
+return ee.Image(onlyreq)
+
+
+
+}
+
+var my = yr.map(each_img)
+// //print(my)
+
+// var imgcoll = ee.ImageCollection(my)
+
+// print(imgcoll)
+// ///// Show Temporal Change in Forest in the study area ///////
+
+// var myforimg = imgcoll.first()
+
+// print(myforimg)
+
+// //// Save each map as image collection ///// 
+// //var viz = {min:0, max:5000, palette:['ffffff','b7f0ae','21f600','0000FF','FDFF92','FF2700','d600ff']};
+
+// Map.addLayer(myforimg)
+// // var visParams = {
+// //   min: 0.0,
+// //   max: 5000.0,
+// //   palette: [
+// //     'FFFFFF', 'CE7E45', 'DF923D', 'F1B555', 'FCD163', '99B718', '74A901',
+// //     '66A000', '529400', '3E8601', '207401', '056201', '004C00', '023B01',
+// //     '012E01', '011D01', '011301'
+// //   ],
+// // };
+
+// // // Create RGB visualization images for use as animation frames.
+// // var rgbVis = imgcoll.map(function(img) {
+// //   return img.visualize(viz).clip(std);
+// // });
+
+
+
+// // // Define GIF visualization parameters.
+// // var gifParams = {
+// //   // 'region': puyallup,
+// //   'dimensions': 600,
+// //   'crs': 'EPSG:3857',
+// //   'framesPerSecond': 1
+// // };
+
+// // // // Print the GIF URL to the console.
+// // // print(rgbVis.getVideoThumbURL(gifParams));
+
+// // // // // // Render the GIF animation in the console.
+// // // print(ui.Thumbnail(rgbVis, gifParams));
+
+
+
